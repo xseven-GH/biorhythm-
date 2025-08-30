@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculator Bioritm</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f7f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .container {
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 900px;
+            box-sizing: border-box;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-top: 0;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 25px;
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 25px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .control-group label {
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+        .control-group input, .control-group select {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            background-color: #3498db;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .export-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .export-buttons button {
+            background-color: #2ecc71;
+        }
+        .export-buttons button:hover {
+            background-color: #27ae60;
+        }
+        .export-buttons button.pdf {
+            background-color: #e74c3c;
+        }
+        .export-buttons button.pdf:hover {
+            background-color: #c0392b;
+        }
+        #chart-container {
+            position: relative;
+            width: 100%;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Calculator Bioritm</h1>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="birthDate">Data nașterii:</label>
+                <input type="date" id="birthDate" required>
+            </div>
+            <div class="control-group">
+                <label for="startDate">Început perioadă:</label>
+                <input type="date" id="startDate">
+            </div>
+            <div class="control-group">
+                <label for="period">Afișează pentru:</label>
+                <select id="period">
+                    <option value="30" selected>30 de zile</option>
+                    <option value="60">60 de zile</option>
+                    <option value="90">90 de zile</option>
+                    <option value="365">365 de zile</option>
+                </select>
+            </div>
+            <button id="calculateBtn">Calculează și Afișează Grafic</button>
+        </div>
+        
+        <div id="chart-container">
+            <canvas id="biorhythmChart"></canvas>
+        </div>
+
+        <div class="export-buttons">
+            <button id="exportPngBtn" style="display:none;">Exportă ca PNG</button>
+            <button id="exportPdfBtn" class="pdf" style="display:none;">Exportă ca PDF</button>
+        </div>
+    </div>
+
+    <script>
+        // Setam ca data de inceput sa fie ziua curenta
+        document.getElementById('startDate').valueAsDate = new Date();
+
+        const calculateBtn = document.getElementById('calculateBtn');
+        const exportPngBtn = document.getElementById('exportPngBtn');
+        const exportPdfBtn = document.getElementById('exportPdfBtn');
+        const ctx = document.getElementById('biorhythmChart').getContext('2d');
+        let biorhythmChart = null;
+
+        // Ciclurile și culorile definite conform specificațiilor
+        const cycles = {
+            physical: { period: 23, halfPeriod: 11.5, color: 'rgba(255, 99, 132, 1)', label: 'Fizic' }, // Roșu
+            emotional: { period: 28, halfPeriod: 14, color: 'rgba(75, 192, 192, 1)', label: 'Emoțional' }, // Verde
+            intellectual: { period: 33, halfPeriod: 16.5, color: 'rgba(54, 162, 235, 1)', label: 'Intelectual' } // Albastru
+        };
+
+        // Functia de calcul a bioritmului pentru o anumita zi (LOGICA LINIARA SPECIFICA)
+        function calculateBiorhythmValue(daysSinceBirth, cycle) {
+            const dayInCycle = daysSinceBirth % cycle.period; // Ziua curenta in cadrul ciclului
+            const unit = 10 / cycle.halfPeriod; // Valoarea unei unitati pe axa Y
+
+            if (dayInCycle === 0) { // Prima zi a unui ciclu (incepe de la 0 sau de jos)
+                return 0; // Sau 0, conform imaginii
+            } else if (dayInCycle <= cycle.halfPeriod) {
+                // Faza pozitiva (panta ascendenta)
+                return (dayInCycle) * unit;
+            } else {
+                // Faza negativa (panta descendenta)
+                return (cycle.halfPeriod - (dayInCycle - cycle.halfPeriod)) * unit;
+            }
+        }
+        
+        // Evidentierea zilelor de tranzitie
+        function isTransitionDay(dayInCycle, cycle) {
+            return dayInCycle === 0 || dayInCycle === cycle.halfPeriod;
+        }
+
+
+        calculateBtn.addEventListener('click', () => {
+            const birthDateInput = document.getElementById('birthDate').value;
+            const startDateInput = document.getElementById('startDate').value;
+            const periodDays = parseInt(document.getElementById('period').value, 10);
+
+            if (!birthDateInput || !startDateInput) {
+                alert("Vă rugăm să selectați data nașterii și data de început.");
+                return;
+            }
+
+            const birthDate = new Date(birthDateInput);
+            const startDate = new Date(startDateInput);
+            
+            if (birthDate > new Date()) {
+                alert("Data nașterii nu poate fi în viitor.");
+                return;
+            }
+
+            const labels = [];
+            const physicalData = [];
+            const emotionalData = [];
+            const intellectualData = [];
+
+            for (let i = 0; i < periodDays; i++) {
+                const currentDate = new Date(startDate);
+                currentDate.setDate(startDate.getDate() + i);
+
+                const diffTime = Math.abs(currentDate - birthDate);
+                const daysSinceBirth = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                labels.push(currentDate.toLocaleDateString('ro-RO'));
+                physicalData.push(calculateBiorhythmValue(daysSinceBirth, cycles.physical));
+                emotionalData.push(calculateBiorhythmValue(daysSinceBirth, cycles.emotional));
+                intellectualData.push(calculateBiorhythmValue(daysSinceBirth, cycles.intellectual));
+            }
+            
+            // Distrugem graficul vechi, daca exista, pentru a crea unul nou
+            if (biorhythmChart) {
+                biorhythmChart.destroy();
+            }
+
+            biorhythmChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: cycles.physical.label,
+                            data: physicalData,
+                            borderColor: cycles.physical.color,
+                            backgroundColor: cycles.physical.color.replace('1)', '0.1)'),
+                            tension: 0, // Linii drepte, nu curbe
+                            pointRadius: (context) => { // Evidentiaza punctele de tranzitie (0, jumatate, sfarsit de ciclu)
+                                const currentDate = new Date(startDate);
+                                currentDate.setDate(startDate.getDate() + context.dataIndex);
+                                const diffTime = Math.abs(currentDate - birthDate);
+                                const daysSinceBirth = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                const dayInCycle = daysSinceBirth % cycles.physical.period;
+                                if (isTransitionDay(dayInCycle, cycles.physical)) {
+                                    return 5; 
+                                }
+                                return 0; 
+                            },
+                            pointBackgroundColor: cycles.physical.color,
+                        },
+                        {
+                            label: cycles.emotional.label,
+                            data: emotionalData,
+                            borderColor: cycles.emotional.color,
+                            backgroundColor: cycles.emotional.color.replace('1)', '0.1)'),
+                            tension: 0, // Linii drepte
+                            pointRadius: (context) => {
+                                const currentDate = new Date(startDate);
+                                currentDate.setDate(startDate.getDate() + context.dataIndex);
+                                const diffTime = Math.abs(currentDate - birthDate);
+                                const daysSinceBirth = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                const dayInCycle = daysSinceBirth % cycles.emotional.period;
+                                if (isTransitionDay(dayInCycle, cycles.emotional)) {
+                                    return 5;
+                                }
+                                return 0;
+                            },
+                             pointBackgroundColor: cycles.emotional.color,
+                        },
+                        {
+                            label: cycles.intellectual.label,
+                            data: intellectualData,
+                            borderColor: cycles.intellectual.color,
+                            backgroundColor: cycles.intellectual.color.replace('1)', '0.1)'),
+                            tension: 0, // Linii drepte
+                            pointRadius: (context) => {
+                                const currentDate = new Date(startDate);
+                                currentDate.setDate(startDate.getDate() + context.dataIndex);
+                                const diffTime = Math.abs(currentDate - birthDate);
+                                const daysSinceBirth = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                const dayInCycle = daysSinceBirth % cycles.intellectual.period;
+                                if (isTransitionDay(dayInCycle, cycles.intellectual)) {
+                                    return 5;
+                                }
+                                return 0;
+                            },
+                             pointBackgroundColor: cycles.intellectual.color,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Grafic Bioritm pentru ${periodDays} de zile`,
+                            font: { size: 18 }
+                        },
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toFixed(2);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            min: -10.5, // Pentru a include -10
+                            max: 10.5, // Pentru a include +10
+                            title: {
+                                display: true,
+                                text: 'Nivel Ciclu'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Data'
+                            }
+                        }
+                    },
+                    animation: {
+                        onComplete: () => {
+                             // Afisam butoanele de export doar dupa ce graficul a fost generat
+                            exportPngBtn.style.display = 'inline-block';
+                            exportPdfBtn.style.display = 'inline-block';
+                        }
+                    }
+                }
+            });
+        });
+
+        // Functie export PNG
+        exportPngBtn.addEventListener('click', () => {
+            if (biorhythmChart) {
+                const link = document.createElement('a');
+                link.href = biorhythmChart.toBase64Image('image/png', 1); // Fundal alb
+                link.download = 'bioritm.png';
+                link.click();
+            }
+        });
+
+        // Functie export PDF
+        exportPdfBtn.addEventListener('click', () => {
+            if (biorhythmChart) {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('landscape', 'px', 'a4');
+                const image = biorhythmChart.toBase64Image('image/png', 1);
+                
+                const imgProps= doc.getImageProperties(image);
+                const pdfWidth = doc.internal.pageSize.getWidth() - 20; // cu margini
+                const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+                doc.addImage(image, 'PNG', 10, 10, pdfWidth, pdfHeight);
+                doc.save('bioritm.pdf');
+            }
+        });
+    </script>
+
+</body>
+</html>
