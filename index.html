@@ -239,7 +239,7 @@
             emotional: { days: 28, color: 'rgb(239, 68, 68)' }, // Roșu
             intellectual: { days: 33, color: 'rgb(59, 130, 246)' } // Albastru
         };
-        const ROMANIAN_DAYS_OF_WEEK = ['Duminică', 'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă'];
+        const ROMANIAN_DAYS_OF_WEEK = ['Dum', 'Lun', 'Mar', 'Mie', 'Joi', 'Vin', 'Sâm'];
 
         const MAX_Y = 10;
         let chartData = [];
@@ -361,7 +361,8 @@
 
             ctx.clearRect(0, 0, width, height);
 
-            const padding = 50;
+            // Responsive padding based on screen size
+            const padding = width < 400 ? 20 : 50; 
             const chartWidth = width - 2 * padding;
             const chartHeight = height - 2 * padding;
             const originX = padding;
@@ -384,7 +385,8 @@
                 ctx.stroke();
 
                 ctx.fillStyle = '#4a5568';
-                ctx.font = '10px Inter';
+                // Font size for Y-axis labels
+                ctx.font = 'clamp(8px, 2vw, 12px) Inter';
                 ctx.textAlign = 'right';
                 ctx.fillText(i, originX - 5, y + 3);
             }
@@ -396,7 +398,7 @@
             ctx.stroke();
             
             ctx.fillStyle = '#4a5568';
-            ctx.font = '10px Inter';
+            ctx.font = 'clamp(8px, 2vw, 12px) Inter';
             ctx.textAlign = 'center';
             ctx.fillText('0', originX - 5, originY + 3);
             
@@ -428,32 +430,60 @@
 
             // Draw x-axis labels (dates)
             ctx.fillStyle = '#4a5568';
-            ctx.font = '10px Inter';
-
-            // Draw a label for EVERY single day
-            for (let i = 0; i < daysToDraw; i++) {
+            ctx.font = 'clamp(8px, 2vw, 10px) Inter';
+            
+            // Draw labels at a more readable interval
+            const labelInterval = width < 768 ? 7 : 1;
+            for (let i = 0; i < daysToDraw; i += labelInterval) {
                 const date = dates[i];
-                const dateStr = date.toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                const dateStr = date.toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit' });
                 const x = originX + i * xStep;
+
                 ctx.save();
                 ctx.translate(x, height - 35);
-                ctx.rotate(-Math.PI / 2); // Rotates the text 90 degrees for vertical display
+                ctx.rotate(-Math.PI / 2);
                 ctx.textAlign = 'right';
                 ctx.fillText(dateStr, 0, 0);
                 ctx.restore();
             }
 
+            // Draw the current day's date label if it's not already on the graph
+            if (todayIndex !== -1 && (todayIndex % labelInterval !== 0 || width < 768)) {
+                const x = originX + todayIndex * xStep;
+                const todayDateStr = dates[todayIndex].toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit' });
+                
+                ctx.save();
+                ctx.translate(x, height - 35);
+                ctx.rotate(-Math.PI / 2);
+                ctx.textAlign = 'right';
+                ctx.fillStyle = '#000000'; // Make today's date black for emphasis
+                ctx.font = 'clamp(8px, 2vw, 10px) Inter bold';
+                ctx.fillText(todayDateStr, 0, 0);
+                ctx.restore();
+            }
+
             // Adăugăm etichetele pentru zilele săptămânii în partea de sus a graficului
-            for (let i = 0; i < daysToDraw; i++) {
+            for (let i = 0; i < daysToDraw; i += labelInterval) {
                 const date = dates[i];
-                const dayOfWeekIndex = date.getDay(); // 0 = Duminică, 1 = Luni, etc.
+                const dayOfWeekIndex = date.getDay();
                 const dayOfWeekName = ROMANIAN_DAYS_OF_WEEK[dayOfWeekIndex];
                 const x = originX + i * xStep;
                 
                 ctx.fillStyle = '#4a5568';
-                ctx.font = '10px Inter';
+                ctx.font = 'clamp(8px, 2vw, 10px) Inter';
                 ctx.textAlign = 'center';
-                ctx.fillText(dayOfWeekName.substring(0, 3), x, padding - 15); // Folosim o abreviere de 3 litere pentru zile
+                ctx.fillText(dayOfWeekName, x, padding - 15);
+            }
+            
+            // Draw the current day's week label if not already displayed
+            if (todayIndex !== -1 && (todayIndex % labelInterval !== 0 || width < 768)) {
+                const x = originX + todayIndex * xStep;
+                const todayDayOfWeek = ROMANIAN_DAYS_OF_WEEK[dates[todayIndex].getDay()];
+
+                ctx.fillStyle = '#000000'; // Make today's day of week black for emphasis
+                ctx.font = 'clamp(8px, 2vw, 10px) Inter bold';
+                ctx.textAlign = 'center';
+                ctx.fillText(todayDayOfWeek, x, padding - 15);
             }
 
             // Draw biorhythm lines and critical days
@@ -530,7 +560,7 @@
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
 
-            const padding = 50;
+            const padding = canvas.offsetWidth < 400 ? 20 : 50;
             const chartWidth = canvas.offsetWidth - 2 * padding;
             const xStep = chartWidth / (chartData.length - 1);
             const dayIndex = Math.round((mouseX - padding) / xStep);
