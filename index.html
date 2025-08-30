@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bioritm Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            color: #1a202c;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 90%;
+            width: 100%;
+            background-color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        .card {
+            border-radius: 0.75rem;
+            border: 1px solid #e2e8f0;
+            padding: 1rem;
+            background-color: #fafafa;
+        }
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            padding-top: 56.25%; /* 16:9 Aspect Ratio */
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            touch-action: none; /* Disable touch gestures on canvas */
+        }
+        .axis-label {
+            position: absolute;
+            font-size: 0.75rem;
+            color: #4a5568;
+            white-space: nowrap;
+        }
+        .x-axis-labels {
+            position: absolute;
+            bottom: -20px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            pointer-events: none;
+            z-index: 10;
+            font-size: 0.875rem;
+            line-height: 1.25;
+            transform: translate(-50%, -110%);
+        }
+        .tooltip h4 {
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+        }
+        @media (min-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            .controls-and-info {
+                flex-direction: row;
+                justify-content: space-between;
+                gap: 2rem;
+            }
+            .controls-panel, .info-panel {
+                flex: 1;
+            }
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .legend-color {
+            width: 16px;
+            height: 4px;
+            border-radius: 2px;
+        }
+        /* Custom modal for alerts */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            transition: opacity 0.3s ease-in-out;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .modal.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            text-align: center;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="container p-6 md:p-8 bg-white rounded-xl shadow-lg">
+        <h1 class="text-2xl md:text-3xl font-bold text-center text-gray-800 mb-6">Calculator de bioritm</h1>
+
+        <div class="graph-panel flex-grow w-full relative flex flex-col items-center">
+            <div class="canvas-container relative w-full h-auto">
+                <canvas id="biorhythmChart"></canvas>
+            </div>
+            <div id="tooltip" class="tooltip hidden"></div>
+            <div class="legend flex justify-center gap-4 mt-4">
+                <div class="legend-item">
+                    <div class="legend-color bg-green-500"></div>
+                    <span>Fizic (23 zile)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color bg-red-500"></div>
+                    <span>Emoțional (28 zile)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color bg-blue-500"></div>
+                    <span>Intelectual (33 zile)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls-and-info flex flex-col md:flex-row mt-6 w-full">
+            <div class="controls-panel flex-1 p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-4">
+                <div class="card space-y-2">
+                    <label for="birthDate" class="block font-medium text-gray-700">Data nașterii:</label>
+                    <input type="date" id="birthDate" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="card space-y-2">
+                    <label for="startDate" class="block font-medium text-gray-700">Data de început:</label>
+                    <input type="date" id="startDate" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="card space-y-2">
+                    <label for="period" class="block font-medium text-gray-700">Perioada (zile):</label>
+                    <select id="period" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="30">30 de zile</option>
+                        <option value="60">60 de zile</option>
+                        <option value="90">90 de zile</option>
+                        <option value="180">180 de zile</option>
+                        <option value="365">365 de zile</option>
+                    </select>
+                </div>
+                
+                <div class="flex justify-center mt-6 space-x-4">
+                    <button onclick="calculateBiorhythm()" class="px-6 py-2 bg-blue-600 text-white font-bold rounded-md shadow-lg hover:bg-blue-700 transition duration-300">Calculează</button>
+                    <button onclick="exportChart()" class="px-6 py-2 bg-green-600 text-white font-bold rounded-md shadow-lg hover:bg-green-700 transition duration-300">Exportă PNG</button>
+                </div>
+            </div>
+
+            <div class="info-panel flex-1 p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-4 mt-4 md:mt-0">
+                <div class="card space-y-2">
+                    <h3 class="text-lg font-bold">Informații suplimentare:</h3>
+                    <p>Zile trecute de la naștere: <span id="daysPassed"></span></p>
+                    <p>Vârstă: <span id="age"></span></p>
+                    <p>Ziua ciclului: Fizic <span id="physicalDay"></span>, Emoțional <span id="emotionalDay"></span>, Intelectual <span id="intellectualDay"></span></p>
+                    <p>Urmatoarea schimbare:</p>
+                    <ul class="list-disc list-inside ml-4">
+                        <li>Fizic: <span id="physicalNextZero"></span></li>
+                        <li>Emoțional: <span id="emotionalNextZero"></span></li>
+                        <li>Intelectual: <span id="intellectualNextZero"></span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Modal for Alerts -->
+    <div id="alertModal" class="modal">
+        <div class="modal-content">
+            <p id="alertMessage" class="text-gray-800"></p>
+            <button onclick="closeModal()" class="mt-4 px-4 py-2 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-700">OK</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('biorhythmChart');
+        const ctx = canvas.getContext('2d');
+        const birthDateInput = document.getElementById('birthDate');
+        const startDateInput = document.getElementById('startDate');
+        const periodInput = document.getElementById('period');
+        const daysPassedSpan = document.getElementById('daysPassed');
+        const ageSpan = document.getElementById('age');
+        const physicalDaySpan = document.getElementById('physicalDay');
+        const emotionalDaySpan = document.getElementById('emotionalDay');
+        const intellectualDaySpan = document.getElementById('intellectualDay');
+        const physicalNextZeroSpan = document.getElementById('physicalNextZero');
+        const emotionalNextZeroSpan = document.getElementById('emotionalNextZero');
+        const intellectualNextZeroSpan = document.getElementById('intellectualNextZero');
+        const tooltip = document.getElementById('tooltip');
+        const alertModal = document.getElementById('alertModal');
+        const alertMessage = document.getElementById('alertMessage');
+
+        // Set default dates
+        const today = new Date();
+        birthDateInput.value = '1979-05-03';
+        startDateInput.valueAsDate = today;
+
+        const BIORHYTHM_CYCLES = {
+            physical: { days: 23, color: 'rgb(34, 197, 94)' }, // Verde
+            emotional: { days: 28, color: 'rgb(239, 68, 68)' }, // Roșu
+            intellectual: { days: 33, color: 'rgb(59, 130, 246)' } // Albastru
+        };
+        const ROMANIAN_DAYS_OF_WEEK = ['Duminică', 'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă'];
+
+        const MAX_Y = 10;
+        let chartData = [];
+        let dates = [];
+
+        function showModal(message) {
+            alertMessage.textContent = message;
+            alertModal.classList.add('active');
+        }
+
+        function closeModal() {
+            alertModal.classList.remove('active');
+        }
+
+        function calculateDaysBetweenDates(date1, date2) {
+            const diffInTime = date2.getTime() - date1.getTime();
+            return Math.floor(diffInTime / (1000 * 3600 * 24));
+        }
+
+        function calculateBiorhythmValue(birthDate, currentDate, cycleDays) {
+            const diffInDays = calculateDaysBetweenDates(birthDate, currentDate);
+            const dayInCycle = (diffInDays % cycleDays);
+            const halfCycle = cycleDays / 2;
+
+            if (dayInCycle <= halfCycle) {
+                return (dayInCycle / halfCycle) * MAX_Y;
+            } else {
+                return ((dayInCycle - halfCycle) / halfCycle) * -MAX_Y;
+            }
+        }
+
+        function calculateBiorhythm() {
+            const birthDate = new Date(birthDateInput.value);
+            const startDate = new Date(startDateInput.value);
+            const period = parseInt(periodInput.value);
+
+            if (isNaN(birthDate.getTime())) {
+                showModal('Vă rugăm să introduceți o dată de naștere validă.');
+                return;
+            }
+            
+            // Adjust start date to include the week before
+            const adjustedStartDate = new Date(startDate);
+            adjustedStartDate.setDate(startDate.getDate() - 7);
+
+            // Update additional information
+            const daysPassed = calculateDaysBetweenDates(birthDate, today);
+            daysPassedSpan.textContent = daysPassed;
+
+            const ageDate = new Date(today - birthDate);
+            const ageYears = ageDate.getUTCFullYear() - 1970;
+            const ageMonths = ageDate.getUTCMonth();
+            const ageDays = ageDate.getUTCDate() - 1;
+            ageSpan.textContent = `${ageYears} ani, ${ageMonths} luni, ${ageDays} zile`;
+            
+            const physicalDay = (daysPassed % BIORHYTHM_CYCLES.physical.days) + 1;
+            const emotionalDay = (daysPassed % BIORHYTHM_CYCLES.emotional.days) + 1;
+            const intellectualDay = (daysPassed % BIORHYTHM_CYCLES.intellectual.days) + 1;
+            physicalDaySpan.textContent = physicalDay;
+            emotionalDaySpan.textContent = emotionalDay;
+            intellectualDaySpan.textContent = intellectualDay;
+            
+            // Calculate days until next zero crossing and phase
+            function getNextPhaseInfo(daysPassed, cycleDays) {
+                const dayInCycle = daysPassed % cycleDays;
+                const halfCycle = cycleDays / 2;
+
+                if (dayInCycle === 0) {
+                    // At the start of a new cycle, the next zero crossing is at the half-cycle point.
+                    return { days: Math.floor(halfCycle), description: "va începe perioada de consum" };
+                } else if (dayInCycle < halfCycle) {
+                    // In the positive phase, the next zero crossing is at the half-cycle point.
+                    // Days left = halfCycle - dayInCycle
+                    return { days: Math.ceil(halfCycle - dayInCycle), description: "va începe perioada de acumulare" };
+                } else { // dayInCycle >= halfCycle
+                    // In the negative phase, the next zero crossing is at the end of the cycle.
+                    // Days left = cycleDays - dayInCycle
+                    return { days: Math.ceil(cycleDays - dayInCycle), description: "va începe perioada de consum" };
+                }
+            }
+
+            const physicalInfo = getNextPhaseInfo(daysPassed, BIORHYTHM_CYCLES.physical.days);
+            physicalNextZeroSpan.textContent = `în ${physicalInfo.days} zile ${physicalInfo.description}`;
+            
+            const emotionalInfo = getNextPhaseInfo(daysPassed, BIORHYTHM_CYCLES.emotional.days);
+            emotionalNextZeroSpan.textContent = `în ${emotionalInfo.days} zile ${emotionalInfo.description}`;
+            
+            const intellectualInfo = getNextPhaseInfo(daysPassed, BIORHYTHM_CYCLES.intellectual.days);
+            intellectualNextZeroSpan.textContent = `în ${intellectualInfo.days} zile ${intellectualInfo.description}`;
+
+            chartData = [];
+            dates = [];
+
+            // Add the extra 7 days to the total period for calculation
+            const totalPeriod = period + 7;
+            for (let i = 0; i < totalPeriod; i++) {
+                const currentDate = new Date(adjustedStartDate);
+                currentDate.setDate(adjustedStartDate.getDate() + i);
+                dates.push(currentDate);
+
+                const dataPoint = {
+                    date: currentDate,
+                    physical: calculateBiorhythmValue(birthDate, currentDate, BIORHYTHM_CYCLES.physical.days),
+                    emotional: calculateBiorhythmValue(birthDate, currentDate, BIORHYTHM_CYCLES.emotional.days),
+                    intellectual: calculateBiorhythmValue(birthDate, currentDate, BIORHYTHM_CYCLES.intellectual.days)
+                };
+                chartData.push(dataPoint);
+            }
+            drawChart();
+        }
+
+        function drawChart() {
+            const dpr = window.devicePixelRatio || 1;
+            const width = canvas.offsetWidth;
+            const height = canvas.offsetHeight;
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            ctx.scale(dpr, dpr);
+
+            ctx.clearRect(0, 0, width, height);
+
+            const padding = 50;
+            const chartWidth = width - 2 * padding;
+            const chartHeight = height - 2 * padding;
+            const originX = padding;
+            const originY = padding + chartHeight / 2;
+            const daysToDraw = chartData.length;
+            const xStep = chartWidth / (daysToDraw - 1);
+            const yRange = 2 * MAX_Y;
+            const yScale = chartHeight / yRange;
+
+            // Draw grid and axes
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1;
+
+            // Y-axis grid lines
+            for (let i = -10; i <= 10; i += 2) {
+                const y = originY - i * yScale;
+                ctx.beginPath();
+                ctx.moveTo(originX, y);
+                ctx.lineTo(originX + chartWidth, y);
+                ctx.stroke();
+
+                ctx.fillStyle = '#4a5568';
+                ctx.font = '10px Inter';
+                ctx.textAlign = 'right';
+                ctx.fillText(i, originX - 5, y + 3);
+            }
+
+            // X-axis (zero line)
+            ctx.beginPath();
+            ctx.moveTo(originX, originY);
+            ctx.lineTo(originX + chartWidth, originY);
+            ctx.stroke();
+            
+            ctx.fillStyle = '#4a5568';
+            ctx.font = '10px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText('0', originX - 5, originY + 3);
+            
+            // Draw vertical lines for each day
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < daysToDraw; i++) {
+                const x = originX + i * xStep;
+                ctx.beginPath();
+                ctx.moveTo(x, originY - chartHeight / 2);
+                ctx.lineTo(x, originY + chartHeight / 2);
+                ctx.stroke();
+            }
+
+            // Draw a yellow bar for the current date
+            const today = new Date();
+            const todayIndex = dates.findIndex(d => 
+                d.getDate() === today.getDate() &&
+                d.getMonth() === today.getMonth() &&
+                d.getFullYear() === today.getFullYear()
+            );
+
+            if (todayIndex !== -1) {
+                const xToday = originX + todayIndex * xStep;
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.3)'; // Yellow with transparency
+                ctx.fillRect(xToday - xStep / 2, padding, xStep, chartHeight);
+            }
+
+
+            // Draw x-axis labels (dates)
+            ctx.fillStyle = '#4a5568';
+            ctx.font = '10px Inter';
+
+            // Draw a label for EVERY single day
+            for (let i = 0; i < daysToDraw; i++) {
+                const date = dates[i];
+                const dateStr = date.toLocaleDateString('ro-RO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                const x = originX + i * xStep;
+                ctx.save();
+                ctx.translate(x, height - 35);
+                ctx.rotate(-Math.PI / 2); // Rotates the text 90 degrees for vertical display
+                ctx.textAlign = 'right';
+                ctx.fillText(dateStr, 0, 0);
+                ctx.restore();
+            }
+
+            // Adăugăm etichetele pentru zilele săptămânii în partea de sus a graficului
+            for (let i = 0; i < daysToDraw; i++) {
+                const date = dates[i];
+                const dayOfWeekIndex = date.getDay(); // 0 = Duminică, 1 = Luni, etc.
+                const dayOfWeekName = ROMANIAN_DAYS_OF_WEEK[dayOfWeekIndex];
+                const x = originX + i * xStep;
+                
+                ctx.fillStyle = '#4a5568';
+                ctx.font = '10px Inter';
+                ctx.textAlign = 'center';
+                ctx.fillText(dayOfWeekName.substring(0, 3), x, padding - 15); // Folosim o abreviere de 3 litere pentru zile
+            }
+
+            // Draw biorhythm lines and critical days
+            const drawLine = (key, color) => {
+                ctx.beginPath();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.lineJoin = 'round';
+                ctx.lineCap = 'round';
+
+                const dataPoints = chartData.map(d => ({
+                    x: originX + dates.indexOf(d.date) * xStep,
+                    y: originY - d[key] * yScale
+                }));
+
+                // Draw the main line
+                ctx.beginPath();
+                ctx.moveTo(dataPoints[0].x, dataPoints[0].y);
+                for (let i = 1; i < dataPoints.length; i++) {
+                    ctx.lineTo(dataPoints[i].x, dataPoints[i].y);
+                }
+                ctx.stroke();
+
+                // Draw circles for each data point and critical days
+                for (let i = 0; i < dataPoints.length; i++) {
+                    const x = dataPoints[i].x;
+                    const y = dataPoints[i].y;
+                    const cycleDays = BIORHYTHM_CYCLES[key].days;
+                    const daysSinceBirth = Math.floor((dates[i].getTime() - new Date(birthDateInput.value).getTime()) / (1000 * 3600 * 24));
+                    const dayInCycle = (daysSinceBirth % cycleDays);
+                    const halfCycle = cycleDays / 2;
+
+                    let isCritical = false;
+
+                    // Critical day logic
+                    // Trecere prin zero (inceputul si mijlocul ciclului)
+                    if (Math.abs(dataPoints[i].y - originY) < 1) { 
+                        isCritical = true;
+                    }
+                    // Finalul ciclului
+                    if (dayInCycle === 0) {
+                        isCritical = true;
+                    }
+
+                    ctx.beginPath();
+                    if (isCritical) {
+                        ctx.fillStyle = color;
+                        ctx.arc(x, y, 4, 0, 2 * Math.PI);
+                        ctx.fill();
+                    } else {
+                        ctx.fillStyle = color;
+                        ctx.arc(x, y, 2, 0, 2 * Math.PI);
+                        ctx.fill();
+                    }
+                }
+            };
+            
+            // Draw all lines
+            drawLine('physical', BIORHYTHM_CYCLES.physical.color);
+            drawLine('emotional', BIORHYTHM_CYCLES.emotional.color);
+            drawLine('intellectual', BIORHYTHM_CYCLES.intellectual.color);
+        }
+
+        // Handle canvas resizing
+        window.addEventListener('resize', () => {
+            if (chartData.length > 0) {
+                drawChart();
+            }
+        });
+
+        // Tooltip functionality
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            const padding = 50;
+            const chartWidth = canvas.offsetWidth - 2 * padding;
+            const xStep = chartWidth / (chartData.length - 1);
+            const dayIndex = Math.round((mouseX - padding) / xStep);
+
+            if (dayIndex >= 0 && dayIndex < chartData.length) {
+                const data = chartData[dayIndex];
+                const dateStr = data.date.toLocaleDateString('ro-RO', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                
+                let tooltipContent = `<h4>${dateStr}</h4>`;
+                tooltipContent += `<p style="color: ${BIORHYTHM_CYCLES.physical.color};">Fizic: ${data.physical.toFixed(2)}</p>`;
+                tooltipContent += `<p style="color: ${BIORHYTHM_CYCLES.emotional.color};">Emoțional: ${data.emotional.toFixed(2)}</p>`;
+                tooltipContent += `<p style="color: ${BIORHYTHM_CYCLES.intellectual.color};">Intelectual: ${data.intellectual.toFixed(2)}</p>`;
+                
+                tooltip.innerHTML = tooltipContent;
+                tooltip.style.left = `${e.clientX}px`;
+                tooltip.style.top = `${e.clientY}px`;
+                tooltip.style.display = 'block';
+            } else {
+                tooltip.style.display = 'none';
+            }
+        });
+
+        canvas.addEventListener('mouseout', () => {
+            tooltip.style.display = 'none';
+        });
+
+        function exportChart() {
+            const link = document.createElement('a');
+            link.download = 'bioritm_grafic.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        // Initial calculation on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            calculateBiorhythm();
+        });
+    </script>
+</body>
+</html>
